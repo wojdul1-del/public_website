@@ -738,9 +738,9 @@ body::before {
 </footer>
 
 <dialog class="closure-notice" id="closure-notice" aria-labelledby="closure-notice-title" aria-describedby="closure-notice-dates closure-notice-details">
-  <p class="closure-notice__dates" id="closure-notice-dates">12.10.2026 – 24.10.2026</p>
+  <p class="closure-notice__dates" id="closure-notice-dates"></p>
   <h2 class="closure-notice__title" id="closure-notice-title">gabinet nieczynny</h2>
-  <p class="closure-notice__details" id="closure-notice-details">Rejestracja możliwa<br>od 26.10.2026 od godz. 8:00</p>
+  <p class="closure-notice__details" id="closure-notice-details">Rejestracja możliwa<br><span id="closure-notice-reopens"></span></p>
   <form method="dialog">
     <button class="phone-btn" autofocus>Zamknij</button>
   </form>
@@ -749,26 +749,59 @@ body::before {
 <script>
 (() => {
   const notice = document.getElementById('closure-notice');
-  // Warsaw returns to CET on 25 October; 08:00 here is 07:00 UTC.
-  const expiresAt = Date.parse('2026-10-26T08:00:00+01:00');
-  if (Date.now() >= expiresAt) return;
+  const closures = [
+    { startsOn: '2026-10-12', endsOn: '2026-10-24', reopensAt: '2026-10-26T08:00:00+01:00' },
+    { startsOn: '2026-12-14', endsOn: '2027-01-06', reopensAt: '2027-01-07T08:00:00+01:00' },
+    { startsOn: '2027-05-28', endsOn: '2027-06-07', reopensAt: '2027-06-09T08:00:00+02:00' },
+  ];
+  const warsawOffset = new Intl.DateTimeFormat('en', {
+    timeZone: 'Europe/Warsaw', timeZoneName: 'longOffset',
+  });
+  const formatDate = day => day.split('-').reverse().join('.');
 
-  notice.showModal();
+  const schedule = closures.map(closure => {
+    // Subtract calendar days before applying Warsaw's offset, preserving
+    // midnight even when daylight saving changes during the four weeks.
+    const day = new Date(Date.parse(closure.startsOn + 'T00:00:00Z') - 28 * 86400000)
+      .toISOString().slice(0, 10);
+    // Warsaw's clock changes happen after local midnight.
+    const offset = warsawOffset.formatToParts(new Date(day + 'T00:00:00Z'))
+      .find(part => part.type === 'timeZoneName').value.replace('GMT', '');
+    return {
+      ...closure,
+      announcesAt: Date.parse(day + 'T00:00:00' + offset),
+      expiresAt: Date.parse(closure.reopensAt),
+    };
+  });
+  let shownClosure;
+  let timer;
 
-  function checkExpiry() {
-    const remaining = expiresAt - Date.now();
-    if (remaining <= 0) {
+  function updateNotice() {
+    clearTimeout(timer);
+    const now = Date.now();
+    const active = schedule.find(closure => now >= closure.announcesAt && now < closure.expiresAt);
+    if (active !== shownClosure) {
       if (notice.open) notice.close();
-      return;
+      shownClosure = active;
+      if (active) {
+        document.getElementById('closure-notice-dates').textContent =
+          formatDate(active.startsOn) + ' – ' + formatDate(active.endsOn);
+        document.getElementById('closure-notice-reopens').textContent =
+          'od ' + formatDate(active.reopensAt.slice(0, 10)) + ' od godz. 8:00';
+        notice.showModal();
+      }
     }
-    // Short intervals avoid the browser's maximum timeout duration.
-    setTimeout(checkExpiry, Math.min(remaining, 24 * 60 * 60 * 1000));
+
+    const nextChange = Math.min(...schedule.flatMap(closure =>
+      [closure.announcesAt, closure.expiresAt]).filter(time => time > now));
+    if (Number.isFinite(nextChange)) {
+      // Daily checks avoid timeout overflow and account for clock changes.
+      timer = setTimeout(updateNotice, Math.min(nextChange - now, 86400000));
+    }
   }
 
-  checkExpiry();
-  document.addEventListener('visibilitychange', () => {
-    if (Date.now() >= expiresAt && notice.open) notice.close();
-  });
+  updateNotice();
+  document.addEventListener('visibilitychange', updateNotice);
 })();
 </script>
 
