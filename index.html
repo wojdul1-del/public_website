@@ -512,11 +512,63 @@ body::before {
   .phone-btn { padding: 0.7rem 1.15rem; }
 }
 
+/* ── Temporary closure notice ── */
+.closure-notice {
+  margin: auto;
+  width: min(360px, calc(100% - 2.5rem));
+  max-height: calc(100dvh - 2.5rem);
+  overflow: auto;
+  padding: 2rem 1.5rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  text-align: center;
+  font-family: var(--font-body);
+  box-shadow: 0 16px 48px rgba(26, 21, 18, 0.18);
+}
+
+.closure-notice::backdrop {
+  background: rgba(26, 21, 18, 0.35);
+}
+
+.closure-notice__dates {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--warm-deep);
+  letter-spacing: 0.04em;
+}
+
+.closure-notice__title {
+  margin-top: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.closure-notice__details {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-light);
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.closure-notice form { margin-top: 1.5rem; }
+.closure-notice .phone-btn { justify-content: center; }
+.closure-notice .phone-btn:focus-visible {
+  outline: 2px solid var(--warm-deep);
+  outline-offset: 3px;
+}
+
 /* ── Print ── */
 @media print {
   body::before { display: none; }
   .location { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
   .phone-btn { border: 1px solid #999; }
+  .closure-notice, .closure-notice::backdrop { display: none; }
 }
 </style>
 </head>
@@ -684,6 +736,41 @@ body::before {
 <footer class="footer">
   <p class="footer__text">Prywatna Praktyka Lekarska &mdash; lek.&thinsp;med. Wojciech Dul</p>
 </footer>
+
+<dialog class="closure-notice" id="closure-notice" aria-labelledby="closure-notice-title" aria-describedby="closure-notice-dates closure-notice-details">
+  <p class="closure-notice__dates" id="closure-notice-dates">12.10.2026 – 24.10.2026</p>
+  <h2 class="closure-notice__title" id="closure-notice-title">gabinet nieczynny</h2>
+  <p class="closure-notice__details" id="closure-notice-details">Rejestracja możliwa<br>od 26.10.2026 od godz. 8:00</p>
+  <form method="dialog">
+    <button class="phone-btn" autofocus>Zamknij</button>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const notice = document.getElementById('closure-notice');
+  // Warsaw returns to CET on 25 October; 08:00 here is 07:00 UTC.
+  const expiresAt = Date.parse('2026-10-26T08:00:00+01:00');
+  if (Date.now() >= expiresAt) return;
+
+  notice.showModal();
+
+  function checkExpiry() {
+    const remaining = expiresAt - Date.now();
+    if (remaining <= 0) {
+      if (notice.open) notice.close();
+      return;
+    }
+    // Short intervals avoid the browser's maximum timeout duration.
+    setTimeout(checkExpiry, Math.min(remaining, 24 * 60 * 60 * 1000));
+  }
+
+  checkExpiry();
+  document.addEventListener('visibilitychange', () => {
+    if (Date.now() >= expiresAt && notice.open) notice.close();
+  });
+})();
+</script>
 
 </body>
 </html>
